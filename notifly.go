@@ -11,6 +11,7 @@ import (
 )
 
 var notify *notificator.Notificator
+var notificationList []github.Notification
 
 type signal struct {
 	ID           int64  `json:"id"`           // Not used when creating a signal
@@ -52,13 +53,15 @@ func getNotif(client *github.Client) []*github.Notification {
 	return notifs
 }
 
-func isNotification(client *github.Client) []*github.Notification {
+func notifications(client *github.Client) []*github.Notification {
 	notifs := getNotif(client)
 
 	return notifs
 }
 
-func sendSignal(notification *github.Notification) {
+func sendSignal(notification github.Notification) {
+	notificationList = append(notificationList, notification)
+
 	notify = notificator.New(notificator.Options{
 		DefaultIcon: "icon/default.png",
 		AppName:     "Github Notifications",
@@ -72,14 +75,30 @@ func main() {
 	isSignalSent := false
 
 	for true {
-		if notifications := isNotification(client); len(notifications) > 0 && !isSignalSent {
-			sendSignal(notifications[len(notifications)-1])
-			isSignalSent = true
-		} else if !(len(notifications) == 0) && isSignalSent {
+		notifications := notifications(client)
+
+		if len(notifications) > 0 {
+			if latestNotification := notifications[0]; excludes(notificationList, *latestNotification) && !isSignalSent {
+				sendSignal(*latestNotification)
+				isSignalSent = true
+			} else {
+				isSignalSent = false
+			}
+		} else {
 			isSignalSent = false
 		}
 
-		time.Sleep(time.Duration(2) * time.Second)
+		time.Sleep(time.Duration(5) * time.Second)
 	}
 
+}
+
+func excludes(arr []github.Notification, val github.Notification) bool {
+   for _, a := range arr {
+      if a.GetID() == val.GetID() {
+         return false
+      }
+   }
+
+   return true
 }
